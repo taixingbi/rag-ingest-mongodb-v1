@@ -1,0 +1,48 @@
+Taixing Bi  ( Open to Remote / Hybrid / NYC)
+New York, NY • 347-560-4308 • taixingbijob@gmail.com
+LinkedIn: https://www.linkedin.com/in/taixing-bi-757a4961
+SUMMARY
+Backend AI Engineer with 7+ years of experience building LLM-powered backend systems, RAG pipelines, agent orchestration, and large-scale distributed infrastructure. Expert in LLM tool-calling, multi-agent systems, retrieval architectures, high-throughput pipelines (Kafka/MSK), AWS serverless, DynamoDB performance engineering, and LLM evaluation frameworks for reliability.
+CORE SKILLS
+LLMs & Agents(PEFT and RL), ReAct, multi-agent planning, tool routing, self-reflection, KV cache, graph pipelines.
+RAG & Retrieval: FAISS, BM25, hybrid retrieval, embeddings, chunking, cross-encoder reranking, prompt engineering.
+Infra: LangChain and LangGraph, Python, Typescript/NextJS, Java, AWS/Azure/GCP, DynamoDB , S3, Lambda, SQS, EC2, Spark, Kafka/MSK, EventBridge, Docker, Kubernetes ,API Gateway.
+AI Serving: vLLM/Crew, SGLang, TGI, batching, caching, token streaming.
+Observability: Datadog APM & logs, CloudWatch Insights, Prometheus, Grafana
+Data & ML: TensorFlow, PyTorch, Keras, XGBoost, scikit- learn, Spark, BigQuery, Hadoop, HBase, transformer for classification.
+
+PROFESSIONAL EXPERIENCE
+Saks.com — AI Infrastructure Engineer 
+New York, NY • Aug 2021 – Present
+Built and operated production-grade RAG infrastructure using LangChain, including document ingestion, chunking, semantic ranking, and vector store orchestration, improving grounded response accuracy by +38%.
+Designed LLM-to-database access layers using LangChain SQL and tool abstractions, enabling safe, structured querying over operational data and reducing manual lookup time by 65%.
+Architected multi-agent orchestration frameworks with LangGraph, enabling task-specialized agents (retrieval, reasoning, validation) and increasing end-to-end task success rate by 28%.
+Implemented LLM observability and evaluation pipelines with LangSmith, including regression testing, prompt/version diffing, and pairwise model evaluation, preventing 92% of quality regressions prior to production release.
+Deployed low-latency LLM inference services with online tracing, evaluation hooks, and monitoring, maintaining P95 latency under 1.5s at production scale.
+Built a centralized analytics and feature data platform on Snowflake to unify multi-source operational and event data for downstream AI and ML workloads.
+Applied reinforcement learning techniques (PPO, DPO, GRPO) for LLM fine-tuning, leveraging offline evaluations, human and programmatic feedback signals to optimize response quality,
+Designed and operated high-throughput Kafka event pipelines to support real-time ingestion, model signals, and agent execution triggers.
+Developed serverless, distributed backend services using AWS Lambda to support scalable AI workflows and data processing.
+Implemented resilience patterns (timeouts, retries, exponential backoff, circuit breakers) across AI and data services, significantly improving system reliability under load.
+Kaden Health — ML Engineer
+Remote • Jul 2019 – Aug 2021
+Developed ML/NLP models using TensorFlow, PyTorch, Keras, XGBoost (classification, sentiment, Speech models), Spacy.
+Built fine-tuning pipelines with automated voice data cleaning, feature extraction, evaluation loops.
+Developed model-serving microservices for clinical inference.
+Designed real-time streaming architecture using NATS + Kafka.
+Built unified log ingestion (Cloud Run → BigQuery/S3).
+CGMAX — ML Engineer
+New York, NY • Jan 2018 – Jul 2019
+• Built sentiment & price prediction models.
+• Developed ETL + real-time analytics w/ Spark, Hadoop, Kafka, HBase.
+NVIDIA — Full Stack Engineer
+Santa Clara, CA • Mar 2016 – Dec 2017
+• Built telemetry services, dashboards, and analytics tools (C++/Python).
+Developed internal REST APIs supporting GPU engineering.
+Built frontend interfaces using React within a Node.js environment.
+EDUCATION
+Master of Science, Analytics (Machine Learning / NLP) — Harrisburg University (2019–2022)
+Master of Science, Computer Engineering — University of Alabama Huntsville (2013–2015)
+PUBLICATION
+A Novel Approach to Impedance-based Fault Location for High Voltage Cables — IEEE IAS, 2012
+

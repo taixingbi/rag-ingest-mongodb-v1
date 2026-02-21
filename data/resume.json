@@ -1,0 +1,420 @@
+{
+  "schema_version": "1.0",
+  "generated_on": "2026-02-15",
+  "source": {
+    "type": "resume_text",
+    "notes": "Structured knowledge extracted from resume.txt"
+  },
+  "profile": {
+    "name": "Taixing Bi",
+    "headline": "Backend AI Engineer / AI Infrastructure Engineer",
+    "location": "New York, NY",
+    "work_preference": [
+      "Remote",
+      "Hybrid",
+      "NYC"
+    ],
+    "contact": {
+      "phone": "347-560-4308",
+      "email": "taixingbijob@gmail.com",
+      "linkedin": "https://www.linkedin.com/in/taixing-bi-757a4961"
+    },
+    "summary": {
+      "years_experience": 7,
+      "focus_areas": [
+        "LLM-powered backend systems",
+        "RAG pipelines",
+        "Agent orchestration",
+        "Large-scale distributed infrastructure",
+        "LLM evaluation for reliability"
+      ],
+      "strengths": [
+        "LLM tool-calling",
+        "Multi-agent systems",
+        "Retrieval architectures",
+        "High-throughput pipelines (Kafka/MSK)",
+        "AWS serverless",
+        "DynamoDB performance engineering",
+        "LLM evaluation frameworks"
+      ]
+    }
+  },
+  "skills": {
+    "llm_agents": {
+      "patterns": [
+        "ReAct",
+        "multi-agent planning",
+        "tool routing",
+        "self-reflection",
+        "graph pipelines",
+        "KV cache"
+      ],
+      "training_methods": [
+        "PEFT",
+        "RL"
+      ],
+      "rl_methods": [
+        "PPO",
+        "DPO",
+        "GRPO"
+      ]
+    },
+    "rag_retrieval": [
+      "FAISS",
+      "BM25",
+      "hybrid retrieval",
+      "embeddings",
+      "chunking",
+      "cross-encoder reranking",
+      "prompt engineering"
+    ],
+    "frameworks": [
+      "LangChain",
+      "LangGraph"
+    ],
+    "languages": [
+      "Python",
+      "Java",
+      "TypeScript"
+    ],
+    "cloud_infra": [
+      "AWS",
+      "Azure",
+      "GCP",
+      "DynamoDB",
+      "S3",
+      "Lambda",
+      "SQS",
+      "EC2",
+      "API Gateway",
+      "Docker",
+      "Kubernetes",
+      "EventBridge"
+    ],
+    "data_streaming": [
+      "Kafka",
+      "MSK",
+      "Spark",
+      "BigQuery",
+      "Hadoop",
+      "HBase",
+      "Snowflake"
+    ],
+    "ai_serving": [
+      "vLLM",
+      "SGLang",
+      "TGI",
+      "batching",
+      "caching",
+      "token streaming"
+    ],
+    "observability": [
+      "Datadog",
+      "CloudWatch Insights",
+      "Prometheus",
+      "Grafana"
+    ],
+    "ml_data": [
+      "TensorFlow",
+      "PyTorch",
+      "Keras",
+      "XGBoost",
+      "scikit-learn",
+      "transformers (classification)"
+    ]
+  },
+  "experience": [
+    {
+      "company": "Saks.com",
+      "role": "AI Infrastructure Engineer",
+      "location": "New York, NY",
+      "start": "2021-08",
+      "end": null,
+      "highlights": [
+        {
+          "type": "rag_platform",
+          "statement": "Built and operated production-grade RAG infrastructure using LangChain (ingestion, chunking, semantic ranking, vector store orchestration).",
+          "metrics": [
+            {
+              "name": "grounded_response_accuracy_improvement",
+              "value": 38,
+              "unit": "percent"
+            }
+          ],
+          "tech": [
+            "LangChain",
+            "RAG",
+            "vector store",
+            "chunking",
+            "semantic ranking"
+          ]
+        },
+        {
+          "type": "sql_tooling",
+          "statement": "Designed LLM-to-database access layers using LangChain SQL and tool abstractions for safe structured querying over operational data.",
+          "metrics": [
+            {
+              "name": "manual_lookup_time_reduction",
+              "value": 65,
+              "unit": "percent"
+            }
+          ],
+          "tech": [
+            "LangChain SQL",
+            "tool abstractions",
+            "structured querying"
+          ]
+        },
+        {
+          "type": "agent_orchestration",
+          "statement": "Architected multi-agent orchestration with LangGraph (retrieval, reasoning, validation).",
+          "metrics": [
+            {
+              "name": "end_to_end_task_success_rate_increase",
+              "value": 28,
+              "unit": "percent"
+            }
+          ],
+          "tech": [
+            "LangGraph",
+            "multi-agent",
+            "validation"
+          ]
+        },
+        {
+          "type": "evaluation_observability",
+          "statement": "Implemented LLM observability and evaluation pipelines with LangSmith (regression testing, prompt/version diffing, pairwise eval).",
+          "metrics": [
+            {
+              "name": "quality_regressions_prevented_pre_release",
+              "value": 92,
+              "unit": "percent"
+            }
+          ],
+          "tech": [
+            "LangSmith",
+            "evaluation",
+            "regression testing"
+          ]
+        },
+        {
+          "type": "serving_latency",
+          "statement": "Deployed low-latency LLM inference services with tracing, evaluation hooks, and monitoring.",
+          "metrics": [
+            {
+              "name": "p95_latency",
+              "value": 1.5,
+              "unit": "seconds",
+              "operator": "<"
+            }
+          ],
+          "tech": [
+            "LLM inference",
+            "tracing",
+            "monitoring"
+          ]
+        },
+        {
+          "type": "data_platform",
+          "statement": "Built centralized analytics and feature data platform on Snowflake to unify multi-source operational and event data.",
+          "tech": [
+            "Snowflake",
+            "analytics",
+            "feature platform"
+          ]
+        },
+        {
+          "type": "fine_tuning",
+          "statement": "Applied reinforcement learning techniques for LLM fine-tuning using offline eval and feedback signals.",
+          "tech": [
+            "PPO",
+            "DPO",
+            "GRPO",
+            "offline evaluation",
+            "feedback"
+          ]
+        },
+        {
+          "type": "streaming_pipelines",
+          "statement": "Designed and operated high-throughput Kafka pipelines for real-time ingestion and agent execution triggers.",
+          "tech": [
+            "Kafka",
+            "MSK",
+            "real-time pipelines"
+          ]
+        },
+        {
+          "type": "serverless",
+          "statement": "Developed serverless distributed backend services using AWS Lambda for scalable AI workflows.",
+          "tech": [
+            "AWS Lambda",
+            "serverless"
+          ]
+        },
+        {
+          "type": "reliability",
+          "statement": "Implemented resilience patterns (timeouts, retries, exponential backoff, circuit breakers) to improve reliability under load.",
+          "tech": [
+            "timeouts",
+            "retries",
+            "backoff",
+            "circuit breaker"
+          ]
+        }
+      ]
+    },
+    {
+      "company": "Kaden Health",
+      "role": "ML Engineer",
+      "location": "Remote",
+      "start": "2019-07",
+      "end": "2021-08",
+      "highlights": [
+        {
+          "type": "ml_nlp_models",
+          "statement": "Developed ML/NLP models (classification, sentiment, speech) and used spaCy.",
+          "tech": [
+            "TensorFlow",
+            "PyTorch",
+            "Keras",
+            "XGBoost",
+            "spaCy"
+          ]
+        },
+        {
+          "type": "fine_tuning_pipelines",
+          "statement": "Built fine-tuning pipelines with automated voice data cleaning, feature extraction, and evaluation loops.",
+          "tech": [
+            "data cleaning",
+            "feature extraction",
+            "evaluation"
+          ]
+        },
+        {
+          "type": "serving",
+          "statement": "Developed model-serving microservices for clinical inference.",
+          "tech": [
+            "microservices",
+            "model serving"
+          ]
+        },
+        {
+          "type": "streaming_architecture",
+          "statement": "Designed real-time streaming architecture using NATS + Kafka.",
+          "tech": [
+            "NATS",
+            "Kafka",
+            "streaming"
+          ]
+        },
+        {
+          "type": "logging",
+          "statement": "Built unified log ingestion (Cloud Run → BigQuery/S3).",
+          "tech": [
+            "Cloud Run",
+            "BigQuery",
+            "S3",
+            "log ingestion"
+          ]
+        }
+      ]
+    },
+    {
+      "company": "CGMAX",
+      "role": "ML Engineer",
+      "location": "New York, NY",
+      "start": "2018-01",
+      "end": "2019-07",
+      "highlights": [
+        {
+          "type": "prediction_models",
+          "statement": "Built sentiment and price prediction models.",
+          "tech": [
+            "sentiment",
+            "prediction"
+          ]
+        },
+        {
+          "type": "etl_analytics",
+          "statement": "Developed ETL and real-time analytics pipelines with Spark, Hadoop, Kafka, HBase.",
+          "tech": [
+            "Spark",
+            "Hadoop",
+            "Kafka",
+            "HBase"
+          ]
+        }
+      ]
+    },
+    {
+      "company": "NVIDIA",
+      "role": "Full Stack Engineer",
+      "location": "Santa Clara, CA",
+      "start": "2016-03",
+      "end": "2017-12",
+      "highlights": [
+        {
+          "type": "telemetry_analytics",
+          "statement": "Built telemetry services, dashboards, and analytics tools.",
+          "tech": [
+            "C++",
+            "Python",
+            "telemetry",
+            "analytics"
+          ]
+        },
+        {
+          "type": "apis",
+          "statement": "Developed internal REST APIs supporting GPU engineering.",
+          "tech": [
+            "REST",
+            "APIs"
+          ]
+        },
+        {
+          "type": "frontend",
+          "statement": "Built frontend interfaces using React within a Node.js environment.",
+          "tech": [
+            "React",
+            "Node.js"
+          ]
+        }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Master of Science",
+      "field": "Analytics (Machine Learning / NLP)",
+      "institution": "Harrisburg University",
+      "start_year": 2019,
+      "end_year": 2022
+    },
+    {
+      "degree": "Master of Science",
+      "field": "Computer Engineering",
+      "institution": "University of Alabama in Huntsville",
+      "start_year": 2013,
+      "end_year": 2015
+    }
+  ],
+  "publication": {
+    "title": "A Novel Approach to Impedance-based Fault Location for High Voltage Cables",
+    "venue": "IEEE IAS",
+    "year": 2012
+  },
+  "retrieval_chunks": [
+    {
+      "id": "bio_chunk_001",
+      "text": "Taixing Bi is an AI Infrastructure Engineer with 7+ years of experience building production LLM systems, including RAG pipelines, multi-agent orchestration (LangGraph), and LLM evaluation/observability (LangSmith). He has deployed low-latency inference services and built scalable data/streaming platforms using AWS and Kafka.",
+      "tags": [
+        "bio",
+        "retrieval",
+        "llm",
+        "rag",
+        "agents",
+        "infra"
+      ]
+    }
+  ]
+}
