@@ -4,3 +4,5 @@ venv/
 __pycache__/
 .pytest_cache/
 state.json
+data/
+data/part-00000-48a6f07e-bb86-4735-aac7-883349f41a28-c000.json

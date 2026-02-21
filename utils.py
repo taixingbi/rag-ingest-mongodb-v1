@@ -1,10 +1,40 @@
 """Shared utilities for ingest."""
 
 import hashlib
+import io
 import json
 import os
 import time
-from typing import Any
+from typing import Any, Iterator, List, Union
+
+
+def read_lines_in_blocks(
+    filepath_or_file: Union[str, io.TextIOWrapper],
+    block_size: int = 64,
+    encoding: str = "utf-8",
+) -> Iterator[List[str]]:
+    """Read a file in blocks of lines. Yields lists of non-empty stripped lines."""
+    if isinstance(filepath_or_file, str):
+        f = open(filepath_or_file, "r", encoding=encoding)
+        should_close = True
+    else:
+        f = filepath_or_file
+        should_close = False
+    try:
+        block: List[str] = []
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            block.append(line)
+            if len(block) >= block_size:
+                yield block
+                block = []
+        if block:
+            yield block
+    finally:
+        if should_close:
+            f.close()
 
 
 def stable_json_text(obj: Any) -> str:

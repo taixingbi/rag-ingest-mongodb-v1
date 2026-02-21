@@ -26,7 +26,12 @@ class Settings:
     mongodb_collection: str = field(default_factory=lambda: _env("MONGODB_COLLECTION", "rag_chunks"))
 
     openai_api_key: str = field(default_factory=lambda: _env("OPENAI_API_KEY", ""))
-    embed_model: str = field(default_factory=lambda: _env("OPENAI_EMBED_MODEL", "text-embedding-3-small"))
+    # Embed: "openai" or "sentence_transformers"
+    embed_provider: str = field(default_factory=lambda: _env("EMBED_PROVIDER", "openai"))
+    embed_model: str = field(
+        default_factory=lambda: _env("EMBED_MODEL", "")
+        or ("BAAI/bge-small-en-v1.5" if _env("EMBED_PROVIDER", "openai") == "sentence_transformers" else "text-embedding-3-small")
+    )
 
     # Chunking (token-based preferred, char-based fallback)
     chunk_tokens: int = field(default_factory=lambda: _env_int("CHUNK_TOKENS", "1000"))
@@ -37,3 +42,5 @@ class Settings:
     # Ingest (batch size for embeddings API)
     batch_size: int = field(default_factory=lambda: _env_int("BATCH_SIZE", "64"))
     max_concurrent_files: int = field(default_factory=lambda: _env_int("MAX_CONCURRENT_FILES", "3"))
+    block_queue_size: int = field(default_factory=lambda: _env_int("BLOCK_QUEUE_SIZE", "2"))
+    embed_max_concurrent: int = field(default_factory=lambda: _env_int("EMBED_MAX_CONCURRENT", "2"))

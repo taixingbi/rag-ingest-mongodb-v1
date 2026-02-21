@@ -22,30 +22,58 @@ def detect_file_type(filepath: str) -> str:
         return "unknown"
 
 
+def _extract_metadata(obj: Any) -> Optional[Dict[str, Any]]:
+    """Extract metadata from a single JSON object (dict)."""
+    if not isinstance(obj, dict):
+        return None
+    metadata = {}
+    if "metadata" in obj:
+        metadata = obj["metadata"]
+    elif "profile" in obj:
+        profile = obj.get("profile", {})
+        if isinstance(profile, dict):
+            metadata = {
+                "title": profile.get("name") or profile.get("title", "Profile"),
+            }
+    return metadata if metadata else None
+
+
 def normalize_json(filepath: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     """
     Normalize JSON file to stable text.
+    Supports single JSON object/array or NDJSON (newline-delimited JSON, one object per line).
     Returns: (normalized_text, metadata_dict)
     """
     with open(filepath, "r", encoding="utf-8") as f:
-        obj = json.load(f)
-    
-    text = stable_json_text(obj)
-    
-    # Extract metadata if available
-    metadata = {}
-    if isinstance(obj, dict):
-        if "metadata" in obj:
-            metadata = obj["metadata"]
-        elif "profile" in obj:
-            # Try to extract useful metadata from profile structure
-            profile = obj.get("profile", {})
-            if isinstance(profile, dict):
-                metadata = {
-                    "title": profile.get("name") or profile.get("title", "Profile"),
-                }
-    
-    return text, metadata if metadata else None
+        content = f.read()
+
+    if not content.strip():
+        return "", None
+
+    # Try single JSON value first
+    try:
+        obj = json.loads(content)
+        text = stable_json_text(obj)
+        metadata = _extract_metadata(obj) if isinstance(obj, dict) else None
+        return text, metadata
+    except json.JSONDecodeError as e:
+        if "Extra data" not in str(e):
+            raise
+
+    # NDJSON: one JSON object per line (e.g. Spark/Hadoop part files)
+    objs: list = []
+    for line in content.strip().split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        objs.append(json.loads(line))
+
+    if not objs:
+        return "", None
+
+    text = stable_json_text(objs)
+    metadata = _extract_metadata(objs[0]) if objs else None
+    return text, metadata
 
 
 def normalize_markdown(filepath: str) -> Tuple[str, Optional[Dict[str, Any]]]:
