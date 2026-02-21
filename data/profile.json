@@ -1,0 +1,33 @@
+{
+  "profile": {
+    "name": "Taixing Bi",
+    "current_company": "Saks",
+    "title": "AI Infrastructure Engineer",
+    "location": [
+      "Remote",
+      "Hybrid",
+      "Office"
+    ],
+    "expected_compensation_range_usd": {
+      "min": 180000,
+      "max": 240000
+    },
+    "visa_status": "H4 EAD",
+    "need_visa_sponsorship": false,
+    "contact": {
+      "linkedin": "https://www.linkedin.com/in/taixing-bi-757a4961/",
+      "phone": "347-560-4308",
+      "email": "taixingbijob@gmail.com"
+    }
+  },
+  "metadata": {
+    "type": "candidate_structured_profile",
+    "format_version": "1.1",
+    "usage": [
+      "HR screening",
+      "RAG grounding",
+      "LLM tool routing",
+      "Recruiter Q&A alignment"
+    ]
+  }
+}

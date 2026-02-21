@@ -1,0 +1,58 @@
+[
+  {
+    "q": "Who is Taixing Bi?",
+    "a": "Taixing Bi is an AI Infrastructure Engineer with over 7 years of experience building production-grade LLM systems, RAG pipelines, and distributed machine learning platforms."
+  },
+  {
+    "q": "What is his primary expertise?",
+    "a": "He specializes in deploying scalable LLM infrastructure, including retrieval systems, agent orchestration, and real-time AI data pipelines."
+  },
+  {
+    "q": "Is his work research-focused or production-focused?",
+    "a": "His work is strongly production-focused, emphasizing reliability, scalability, and real-world deployment of AI systems."
+  },
+  {
+    "q": "Has he built LLM systems in real business environments?",
+    "a": "Yes, he has designed and operated enterprise RAG and multi-agent AI systems used in live production settings."
+  },
+  {
+    "q": "What kind of companies has he worked for?",
+    "a": "He has worked across retail technology, healthcare AI, data analytics firms, and NVIDIA, giving him cross-industry engineering experience."
+  },
+  {
+    "q": "What level of seniority is he?",
+    "a": "He operates at a senior-to-staff engineering level, contributing architecture design, system reliability, and platform scalability."
+  },
+  {
+    "q": "What technologies does he commonly use?",
+    "a": "He works extensively with LangChain, LangGraph, Python, Kafka, AWS, vector retrieval systems, and modern ML frameworks like PyTorch and TensorFlow."
+  },
+  {
+    "q": "Does he have experience scaling AI systems?",
+    "a": "Yes, he has built high-throughput event-driven architectures and low-latency inference services designed to scale in enterprise environments."
+  },
+  {
+    "q": "What makes him different from a typical ML engineer?",
+    "a": "He focuses not just on models, but on the infrastructure required to make AI reliable, observable, and production-ready."
+  },
+  {
+    "q": "What roles is he best suited for?",
+    "a": "He is best suited for Senior or Staff AI Engineer roles focused on LLM platforms, applied AI infrastructure, and scalable intelligent systems."
+  },
+  {
+    "q": "What is his earliest start date?",
+    "a": "He can begin right away and is flexible to coordinate a start date that ensures a smooth transition."
+  },
+  {
+    "q": "When would he be available to start?",
+    "a": "He is available to start immediately and can align with the company’s preferred onboarding timeline."
+  },
+  {
+    "q": "What is his notice period?",
+    "a": "He currently has no notice obligation and is able to start immediately."
+  },
+  {
+    "q": "Why are you looking for a new opportunity?",
+    "a": "I’m looking to focus fully on applied AI systems. A lot of my recent work has naturally moved into LLM orchestration, retrieval pipelines, and scalable AI tooling, and I want my next role to be centered on building those systems end-to-end rather than as an add-on"
+  }
+]

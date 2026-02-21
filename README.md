@@ -138,4 +138,3 @@ MONGODB_COLLECTION=collection_taixingbi_prod
 ## Links
 
 - [MongoDB Atlas Dashboard](https://cloud.mongodb.com/v2/5f8d901d427b1f41a5daf2c0#/explorer/6994e45919851ad449223e8a/db_hunt/collection_taixingbi_dev/find)
-# rag-ingest-mongodb-v1
