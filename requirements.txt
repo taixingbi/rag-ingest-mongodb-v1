@@ -1,0 +1,11 @@
+pymongo[srv]>=3.11
+motor>=3.3.0
+tiktoken>=0.5.0
+python-dotenv>=1.0.0
+openai>=1.0.0
+# Optional: local embeddings (EMBED_PROVIDER=sentence_transformers, EMBED_MODEL=BAAI/bge-small-en-v1.5)
+sentence-transformers>=2.2.0
+# Optional for PDF support:
+# pdfplumber>=0.10.0
+# Queue (RabbitMQ) for async ingest
+aio-pika>=9.0.0

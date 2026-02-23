@@ -1,0 +1,38 @@
+# RabbitMQ + RAG ingest. Run with queue: docker-compose run --rm rag-ingest python main.py ingest --env dev --target atlas --mode async --queue rabbitmq
+# Or override command for non-queue ingest: docker-compose run --rm rag-ingest python main.py ingest --env dev --target atlas
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI (guest/guest)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rag-ingest:
+    build: .
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      AMQP_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_QUEUE: rag.ingest.tasks
+      # Override from .env or host: MONGODB_URI, OPENAI_API_KEY, etc.
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+      - ./state.json:/app/state.json
+      # Mount app code so streaming progress / latest code is used without rebuilding
+      - .:/app
+    # Use /data (absolute); host ./data is mounted there. Do not override command without --input-dir /data.
+    command: ["python", "main.py", "ingest", "--input-dir", "/data", "--pattern", "**/*", "--env", "dev", "--target", "atlas", "--mode", "async", "--queue", "rabbitmq", "--force"]
+    # For sync ingest without queue: command: ["python", "main.py", "ingest", "--input-dir", "/data", "--env", "dev", "--target", "atlas", "--force"]
+
+volumes:
+  rabbitmq_data:

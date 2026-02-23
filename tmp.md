@@ -1,0 +1,11 @@
+python main.py ingest \
+  --env dev \
+  --target atlas \
+  --mode sync \
+  --queue memory \
+  --workers 4 \
+  --batch-size 64 \
+  --embedder sentence-transformers \
+  --input-dir ./data \
+  --pattern "*.json" \
+  --force
