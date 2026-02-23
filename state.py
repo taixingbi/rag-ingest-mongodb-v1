@@ -16,7 +16,9 @@ def load_state() -> Dict[str, Dict[str, str]]:
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        import sys
+        print(f"Warning: could not load state from {STATE_FILE}: {e}", file=sys.stderr, flush=True)
         return {}
 
 
@@ -24,6 +26,9 @@ def save_state(state: Dict[str, Dict[str, str]]) -> None:
     """Save ingestion state to state.json."""
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
+        f.flush()
+        if hasattr(os, "fsync"):
+            os.fsync(f.fileno())
 
 
 def get_file_state(filepath: str, state: Dict[str, Dict[str, str]]) -> Optional[Dict[str, str]]:

@@ -1,11 +1,24 @@
 """Text chunking: token-based (tiktoken) with char fallback."""
 
-from typing import List
+from typing import Any, Dict, List
 
 try:
     import tiktoken  # optional
 except Exception:
     tiktoken = None
+
+# Cache encoder by model to avoid repeated encoding_for_model/get_encoding (latency).
+_encoder_cache: Dict[str, Any] = {}
+
+
+def _get_encoder(model: str) -> Any:
+    if model not in _encoder_cache:
+        try:
+            _encoder_cache[model] = tiktoken.encoding_for_model(model)
+        except KeyError:
+            # Unknown model name; fall back to cl100k_base (e.g. for OpenAI embedding models)
+            _encoder_cache[model] = tiktoken.get_encoding("cl100k_base")
+    return _encoder_cache[model]
 
 
 def chunk_text_tokens(
@@ -22,11 +35,7 @@ def chunk_text_tokens(
     if tiktoken is None:
         return chunk_text_chars(text, chunk_chars=chunk_chars, overlap_chars=overlap_chars)
 
-    try:
-        enc = tiktoken.encoding_for_model(model)
-    except Exception:
-        enc = tiktoken.get_encoding("cl100k_base")
-
+    enc = _get_encoder(model)
     toks = enc.encode(text)
     if not toks:
         return []

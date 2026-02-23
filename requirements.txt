@@ -7,3 +7,5 @@ openai>=1.0.0
 sentence-transformers>=2.2.0
 # Optional for PDF support:
 # pdfplumber>=0.10.0
+# Queue (RabbitMQ) for async ingest
+aio-pika>=9.0.0

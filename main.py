@@ -23,14 +23,15 @@ Env (.env):
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
-import glob
 import queue
+import sys
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pymongo import MongoClient
 from openai import OpenAI, AsyncOpenAI
@@ -58,6 +59,7 @@ from state import load_state, save_state, should_skip_file, update_file_state
 from utils import (
     compute_stable_id,
     get_file_mtime,
+    get_files_for_ingest,
     now_iso,
     read_lines_in_blocks,
     sha256_text,
@@ -68,6 +70,29 @@ try:
     from motor.motor_asyncio import AsyncIOMotorClient
 except ImportError:
     AsyncIOMotorClient = None
+
+
+# ----------------------------
+# Helpers for doc building
+# ----------------------------
+
+def _tags_from_filename(filename: str) -> List[str]:
+    """Infer tags from filename for metadata."""
+    lower = filename.lower()
+    if "profile" in lower:
+        return ["profile", "resume", "candidate"]
+    if "resume" in lower:
+        return ["resume", "candidate"]
+    if "qa" in lower:
+        return ["qa", "questions"]
+    return ["document"]
+
+
+def _title_for_doc(file_metadata: Optional[Dict[str, Any]], filename: str) -> str:
+    """Title from metadata or filename stem."""
+    if file_metadata and file_metadata.get("title"):
+        return file_metadata["title"]
+    return os.path.splitext(filename)[0]
 
 
 # ----------------------------
@@ -91,7 +116,6 @@ def build_docs_for_file(
     
     # Normalize document to text
     text, file_metadata = normalize_document(filepath)
-    content_hash = sha256_text(text)
     
     # Chunk
     chunks = chunk_text_tokens(
@@ -129,61 +153,14 @@ def build_docs_for_file(
         embeddings = asyncio.run(_embed_batches())
     else:
         embeddings = embed_texts_sentence_transformers(
-            embed_client, chunks, batch_size=settings.batch_size
+            embed_client, chunks, batch_size=settings.embed_batch_size_local
         )
     
     # Build MongoDB documents matching target schema
-    docs: List[Dict[str, Any]] = []
-    dims = len(embeddings[0]) if embeddings else (384 if settings.embed_provider == "sentence_transformers" else 1536)
-    
-    for i, (chunk_text, emb) in enumerate(zip(chunks, embeddings)):
-        chunk_id = f"{source_id}::chunk_{i:04d}"
-        chunk_hash = sha256_text(chunk_text)
-        
-        # Compute stable _id
-        doc_id = compute_stable_id(source_id, chunk_id, chunk_hash)
-        
-        # Extract metadata
-        title = file_metadata.get("title") if file_metadata else None
-        if not title:
-            # Fallback: use filename without extension
-            title = os.path.splitext(filename)[0]
-        
-        # Determine tags based on file type and name
-        tags = []
-        if "profile" in filename.lower():
-            tags.extend(["profile", "resume", "candidate"])
-        elif "resume" in filename.lower():
-            tags.extend(["resume", "candidate"])
-        elif "qa" in filename.lower():
-            tags.extend(["qa", "questions"])
-        else:
-            tags.append("document")
-        
-        doc = {
-            "_id": doc_id,
-            "chunk_id": chunk_id,
-            "source": {
-                "source_id": source_id,
-                "path": filepath,
-                "type": file_type,
-                "mtime": mtime,
-            },
-            "text": chunk_text,
-            "metadata": {
-                "title": title,
-                "section": f"chunk_{i}",
-                "tags": tags,
-                "lang": "en",
-            },
-            "embedding": emb,
-            "embedding_model": settings.embed_model,
-            "dims": dims,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        }
-        docs.append(doc)
-    
+    docs = _docs_from_chunks_embeddings(
+        source_id, filepath, file_type, mtime, filename, file_metadata,
+        chunks, embeddings, 0, settings,
+    )
     return docs
 
 
@@ -191,14 +168,20 @@ async def build_docs_for_file_async(
     filepath: str,
     embed_client: Any,
     settings: Settings,
-) -> List[Dict[str, Any]]:
-    """Async: normalize -> chunk -> embed -> build MongoDB documents."""
+    progress_callback: Optional[Callable[[int, int, Dict[str, float]], None]] = None,
+) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
+    """Async: normalize -> chunk -> embed -> build MongoDB documents. Returns (docs, timings).
+    When progress_callback is set, embedding runs in batches of PROGRESS_CHUNK_INTERVAL and
+    callback(n_done, n_total, timings) is invoked after each batch so progress streams."""
+    timings: Dict[str, float] = {"load_parse": 0.0, "chunk": 0.0, "embed": 0.0, "mongo_bulk_write": 0.0, "finalize": 0.0}
     filename = os.path.basename(filepath)
     source_id = filename
     file_type = detect_file_type(filepath)
     mtime = get_file_mtime(filepath)
+    t0 = time.perf_counter()
     text, file_metadata = normalize_document(filepath)
-    content_hash = sha256_text(text)
+    timings["load_parse"] = time.perf_counter() - t0
+    t0 = time.perf_counter()
     chunks = chunk_text_tokens(
         text=text,
         chunk_tokens=settings.chunk_tokens,
@@ -207,51 +190,104 @@ async def build_docs_for_file_async(
         chunk_chars=settings.chunk_chars,
         overlap_chars=settings.overlap_chars,
     )
+    timings["chunk"] = time.perf_counter() - t0
     if not chunks:
-        return []
+        return [], timings
+    n_total = len(chunks)
     embeddings: List[List[float]] = []
-    if settings.embed_provider == "openai":
-        for i in range(0, len(chunks), settings.batch_size):
-            batch = chunks[i : i + settings.batch_size]
-            cost = sum(estimate_tokens(t) for t in batch)
-            await acquire_tokens(cost)
-            batch_embeddings = await embed_texts_openai_async(
-                embed_client, settings.embed_model, batch
-            )
-            embeddings.extend(batch_embeddings)
+    t_embed_start = time.perf_counter()
+    if progress_callback is not None:
+        # Stream progress: embed in batches of PROGRESS_CHUNK_INTERVAL and report after each
+        next_milestone = PROGRESS_CHUNK_INTERVAL
+        for start in range(0, n_total, PROGRESS_CHUNK_INTERVAL):
+            batch_chunks = chunks[start : start + PROGRESS_CHUNK_INTERVAL]
+            if settings.embed_provider == "openai":
+                sem = asyncio.Semaphore(settings.embed_max_concurrent)
+
+                async def _embed_one(batch: List[str]) -> List[List[float]]:
+                    cost = sum(estimate_tokens(t) for t in batch)
+                    await acquire_tokens(cost)
+                    async with sem:
+                        return await embed_texts_openai_async(
+                            embed_client, settings.embed_model, batch
+                        )
+
+                api_batches = [batch_chunks[i : i + settings.batch_size] for i in range(0, len(batch_chunks), settings.batch_size)]
+                results = await asyncio.gather(*[_embed_one(b) for b in api_batches])
+                batch_embs = [e for r in results for e in r]
+            else:
+                batch_embs = await embed_texts_sentence_transformers_async(
+                    embed_client, batch_chunks, batch_size=settings.embed_batch_size_local
+                )
+            embeddings.extend(batch_embs)
+            timings["embed"] = time.perf_counter() - t_embed_start
+            n_done = start + len(batch_chunks)
+            while next_milestone <= n_done:
+                progress_callback(next_milestone, n_total, timings)
+                next_milestone += PROGRESS_CHUNK_INTERVAL
     else:
-        embeddings = await embed_texts_sentence_transformers_async(
-            embed_client, chunks, batch_size=settings.batch_size
-        )
-    docs = []
+        if settings.embed_provider == "openai":
+            sem = asyncio.Semaphore(settings.embed_max_concurrent)
+
+            async def _embed_one(batch: List[str]) -> List[List[float]]:
+                cost = sum(estimate_tokens(t) for t in batch)
+                await acquire_tokens(cost)
+                async with sem:
+                    return await embed_texts_openai_async(
+                        embed_client, settings.embed_model, batch
+                    )
+
+            batches = [chunks[i : i + settings.batch_size] for i in range(0, len(chunks), settings.batch_size)]
+            results = await asyncio.gather(*[_embed_one(b) for b in batches])
+            embeddings = [e for r in results for e in r]
+        else:
+            embeddings = await embed_texts_sentence_transformers_async(
+                embed_client, chunks, batch_size=settings.embed_batch_size_local
+            )
+        timings["embed"] = time.perf_counter() - t_embed_start
+    docs = _docs_from_chunks_embeddings(
+        source_id, filepath, file_type, mtime, filename, file_metadata,
+        chunks, embeddings, 0, settings,
+    )
+    return docs, timings
+
+
+def _docs_from_chunks_embeddings(
+    source_id: str,
+    filepath: str,
+    file_type: str,
+    mtime: str,
+    filename: str,
+    file_metadata: Optional[Dict[str, Any]],
+    chunks: List[str],
+    embeddings: List[List[float]],
+    chunk_offset: int,
+    settings: Settings,
+) -> List[Dict[str, Any]]:
+    """Build MongoDB doc dicts from chunks and embeddings. Single source of truth for doc schema."""
+    if not embeddings:
+        return []
     dims = len(embeddings[0]) if embeddings else (384 if settings.embed_provider == "sentence_transformers" else 1536)
+    title = _title_for_doc(file_metadata, filename)
+    tags = _tags_from_filename(filename)
+    ts = now_iso()
+    docs: List[Dict[str, Any]] = []
     for i, (chunk_text, emb) in enumerate(zip(chunks, embeddings)):
-        chunk_id = f"{source_id}::chunk_{i:04d}"
+        global_i = chunk_offset + i
+        chunk_id = f"{source_id}::chunk_{global_i:04d}"
         chunk_hash = sha256_text(chunk_text)
         doc_id = compute_stable_id(source_id, chunk_id, chunk_hash)
-        title = file_metadata.get("title") if file_metadata else None
-        if not title:
-            title = os.path.splitext(filename)[0]
-        tags = []
-        if "profile" in filename.lower():
-            tags.extend(["profile", "resume", "candidate"])
-        elif "resume" in filename.lower():
-            tags.extend(["resume", "candidate"])
-        elif "qa" in filename.lower():
-            tags.extend(["qa", "questions"])
-        else:
-            tags.append("document")
         doc = {
             "_id": doc_id,
             "chunk_id": chunk_id,
             "source": {"source_id": source_id, "path": filepath, "type": file_type, "mtime": mtime},
             "text": chunk_text,
-            "metadata": {"title": title, "section": f"chunk_{i}", "tags": tags, "lang": "en"},
+            "metadata": {"title": title, "section": f"chunk_{global_i}", "tags": tags, "lang": "en"},
             "embedding": emb,
             "embedding_model": settings.embed_model,
             "dims": dims,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
+            "created_at": ts,
+            "updated_at": ts,
         }
         docs.append(doc)
     return docs
@@ -270,37 +306,10 @@ def _build_docs_for_block(
     settings: Settings,
 ) -> List[Dict[str, Any]]:
     """Build MongoDB doc dicts for one block of chunks."""
-    docs: List[Dict[str, Any]] = []
-    dims = len(embeddings[0]) if embeddings else (384 if settings.embed_provider == "sentence_transformers" else 1536)
-    title = (file_metadata or {}).get("title") or os.path.splitext(filename)[0]
-    tags = []
-    if "profile" in filename.lower():
-        tags.extend(["profile", "resume", "candidate"])
-    elif "resume" in filename.lower():
-        tags.extend(["resume", "candidate"])
-    elif "qa" in filename.lower():
-        tags.extend(["qa", "questions"])
-    else:
-        tags.append("document")
-    for i, (chunk_text, emb) in enumerate(zip(chunks, embeddings)):
-        global_i = chunk_offset + i
-        chunk_id = f"{source_id}::chunk_{global_i:04d}"
-        chunk_hash = sha256_text(chunk_text)
-        doc_id = compute_stable_id(source_id, chunk_id, chunk_hash)
-        doc = {
-            "_id": doc_id,
-            "chunk_id": chunk_id,
-            "source": {"source_id": source_id, "path": filepath, "type": file_type, "mtime": mtime},
-            "text": chunk_text,
-            "metadata": {"title": title, "section": f"chunk_{global_i}", "tags": tags, "lang": "en"},
-            "embedding": emb,
-            "embedding_model": settings.embed_model,
-            "dims": dims,
-            "created_at": now_iso(),
-            "updated_at": now_iso(),
-        }
-        docs.append(doc)
-    return docs
+    return _docs_from_chunks_embeddings(
+        source_id, filepath, file_type, mtime, filename, file_metadata,
+        chunks, embeddings, chunk_offset, settings,
+    )
 
 
 def process_ndjson_blocks(
@@ -394,7 +403,7 @@ def process_ndjson_blocks(
             embeddings = asyncio.run(_embed_block_batches(chunks, block_num=block_num))
         else:
             embeddings = embed_texts_sentence_transformers(
-                embed_client, chunks, batch_size=settings.batch_size
+                embed_client, chunks, batch_size=settings.embed_batch_size_local
             )
         timings["embed"] = time.perf_counter() - t0
         t0 = time.perf_counter()
@@ -411,8 +420,8 @@ def process_ndjson_blocks(
         for k in total_timings:
             total_timings[k] += timings.get(k, 0.0)
         n_chunks = len(chunks)
-        lp, ch, em, mb, fi = timings["load_parse"], timings["chunk"], timings["embed"], timings["mongo_bulk_write"], timings["finalize"]
-        print(f"  block {block_num}: summary: load_parse={lp:.3f}s chunk={ch:.3f}s embed={em:.3f}s mongo_bulk_write={mb:.3f}s finalize={fi:.3f}s chunks={n_chunks}")
+        lp, ch, em, mb = timings["load_parse"], timings["chunk"], timings["embed"], timings["mongo_bulk_write"]
+        print(f"  block {block_num}: summary: load_parse={lp:.3f}s chunk={ch:.3f}s embed={em:.3f}s mongo_bulk_write={mb:.3f}s chunks={n_chunks}")
 
     # Build first block in main thread (no wait on producer) to avoid freeze
     first_block_lines: List[str] = []
@@ -459,8 +468,8 @@ def process_ndjson_blocks(
         if block_num is None:
             break
         process_one_block(block_num, objs)
-    lp, ch, em, mb, fi = total_timings["load_parse"], total_timings["chunk"], total_timings["embed"], total_timings["mongo_bulk_write"], total_timings["finalize"]
-    print(f"  total summary: load_parse={lp:.3f}s chunk={ch:.3f}s embed={em:.3f}s mongo_bulk_write={mb:.3f}s finalize={fi:.3f}s chunks={total_docs}")
+    lp, ch, em, mb = total_timings["load_parse"], total_timings["chunk"], total_timings["embed"], total_timings["mongo_bulk_write"]
+    print(f"  total summary: load_parse={lp:.3f}s chunk={ch:.3f}s embed={em:.3f}s mongo_bulk_write={mb:.3f}s chunks={total_docs}")
     return total_docs, True
 
 
@@ -494,28 +503,15 @@ def ingest_folder(
     else:
         from sentence_transformers import SentenceTransformer
         print(f"Embed: sentence_transformers ({settings.embed_model})")
-        embed_client = SentenceTransformer(settings.embed_model)
+        embed_client = SentenceTransformer(
+            settings.embed_model,
+            device=settings.embed_device or None,
+        )
     
     # Load state for incremental ingestion
     state = load_state()
     start = time.perf_counter()
-
-    # Find files (support multiple extensions)
-    patterns = [
-        folder_glob,
-        folder_glob.replace("**/*", "**/*.json"),
-        folder_glob.replace("**/*", "**/*.md"),
-        folder_glob.replace("**/*", "**/*.txt"),
-        folder_glob.replace("**/*", "**/*.pdf"),
-    ]
-    
-    all_files = set()
-    for pattern in patterns:
-        all_files.update(glob.glob(pattern, recursive=True))
-    
-    # Filter out directories
-    files = sorted([f for f in all_files if os.path.isfile(f)])
-    
+    files = get_files_for_ingest(folder_glob)
     print(f"Found {len(files)} files matching pattern")
     
     total_docs = 0
@@ -599,25 +595,51 @@ def ingest_folder(
     print(f"  2. Optional: Add text index for hybrid search (field: text)")
 
 
+PROGRESS_CHUNK_INTERVAL = 640  # Print progress every N chunks (async path: upsert in batches and print after each)
+
+
 async def _process_one_file_async(
     filepath: str,
     col: Any,
     embed_client: Any,
     settings: Settings,
     state: Dict[str, Dict[str, str]],
-) -> tuple[int, Exception | None]:
-    """Process one file: build_docs_async -> delete_by_source -> upsert -> update state. Returns (num_docs, error)."""
-    docs = await build_docs_for_file_async(filepath, embed_client, settings)
+    block_num: Optional[int] = None,
+) -> tuple[int, Exception | None, Optional[Dict[str, float]]]:
+    """Process one file: build_docs_async -> delete_by_source -> upsert -> update state. Returns (num_docs, error, timings)."""
+    def _embed_progress(n_done: int, n_total: int, t: Dict[str, float]) -> None:
+        lp, ch, em = t["load_parse"], t["chunk"], t["embed"]
+        print(f"  progress {n_done} chunks: load_parse={lp:.3f}s chunk={ch:.3f}s embed={em:.3f}s mongo_bulk_write=0.000s", flush=True)
+    # Always stream progress during embed (in-process async and RabbitMQ workers)
+    docs, timings = await build_docs_for_file_async(filepath, embed_client, settings, progress_callback=_embed_progress)
     if not docs:
-        return 0, None
+        return 0, None, timings
     source_id = docs[0]["source"]["source_id"]
+    t0 = time.perf_counter()
     await async_delete_chunks_by_source(col, source_id)
-    await async_upsert_chunks(col, docs)
+    t_mongo = 0.0
+    if block_num is not None:
+        # Upsert in batches (no per-batch print; progress was already printed during embed)
+        for start in range(0, len(docs), PROGRESS_CHUNK_INTERVAL):
+            batch = docs[start : start + PROGRESS_CHUNK_INTERVAL]
+            t_batch = time.perf_counter()
+            await async_upsert_chunks(col, batch)
+            t_mongo += time.perf_counter() - t_batch
+        timings["mongo_bulk_write"] = t_mongo
+    else:
+        await async_upsert_chunks(col, docs)
+        timings["mongo_bulk_write"] = time.perf_counter() - t0
+    lp, ch, em, mb = timings["load_parse"], timings["chunk"], timings["embed"], timings["mongo_bulk_write"]
+    n_chunks = len(docs)
+    if block_num is not None:
+        # print(f"  block {block_num}: summary: ...")
+        pass
+    # When block_num is None (e.g. RabbitMQ worker), caller prints ✓ and total summary
     text, _ = normalize_document(filepath)
     content_hash = sha256_text(text)
     mtime = get_file_mtime(filepath)
     update_file_state(filepath, content_hash, mtime, state)
-    return len(docs), None
+    return len(docs), None, timings
 
 
 def ingest_folder_async(
@@ -643,20 +665,12 @@ def ingest_folder_async(
         else:
             from sentence_transformers import SentenceTransformer
             print(f"Embed: sentence_transformers ({settings.embed_model})")
-            embed_client = SentenceTransformer(settings.embed_model)
+            embed_client = SentenceTransformer(
+                settings.embed_model,
+                device=settings.embed_device or None,
+            )
         state = load_state()
-
-        patterns = [
-            folder_glob,
-            folder_glob.replace("**/*", "**/*.json"),
-            folder_glob.replace("**/*", "**/*.md"),
-            folder_glob.replace("**/*", "**/*.txt"),
-            folder_glob.replace("**/*", "**/*.pdf"),
-        ]
-        all_files = set()
-        for pattern in patterns:
-            all_files.update(glob.glob(pattern, recursive=True))
-        files = sorted([f for f in all_files if os.path.isfile(f)])
+        files = get_files_for_ingest(folder_glob)
         to_process: List[str] = []
         skipped = 0
         for filepath in files:
@@ -685,30 +699,37 @@ def ingest_folder_async(
         processed = 0
         errors = 0
         last_printed_round = 0
+        total_timings: Dict[str, float] = {"load_parse": 0.0, "chunk": 0.0, "embed": 0.0, "mongo_bulk_write": 0.0, "finalize": 0.0}
 
-        async def process_with_semaphore(filepath: str) -> None:
+        async def process_with_semaphore(filepath: str, block_num: int) -> None:
             nonlocal total_docs, processed, errors, last_printed_round
             async with sem:
                 try:
                     doc_start = time.perf_counter()
-                    n, _ = await _process_one_file_async(
-                        filepath, col, embed_client, settings, state
+                    n, _, timings = await _process_one_file_async(
+                        filepath, col, embed_client, settings, state, block_num=block_num
                     )
                     elapsed = time.perf_counter() - doc_start
                     async with progress_lock:
                         total_docs += n
+                        if timings:
+                            for k in total_timings:
+                                total_timings[k] += timings.get(k, 0.0)
                         while last_printed_round + 640 <= total_docs:
                             last_printed_round += 640
-                            print(f"  ... Processed {last_printed_round} chunks total")
+                            # Progress already printed from inside _process_one_file_async (per-file streaming)
                         processed += 1
-                    print(f"  ✓ {filepath} -> {n} chunks ({elapsed:.2f}s)")
+                    print(f"  ✓ {filepath} -> {n} chunks ({elapsed:.2f}s)", flush=True)
                 except Exception as e:
                     errors += 1
-                    print(f"  ✗ {filepath}: {e}")
+                    print(f"  ✗ {filepath}: {e}", flush=True)
                     import traceback
                     traceback.print_exc()
 
-        await asyncio.gather(*[process_with_semaphore(fp) for fp in to_process])
+        await asyncio.gather(*[process_with_semaphore(fp, i + 1) for i, fp in enumerate(to_process)])
+
+        lp, ch, em, mb = total_timings["load_parse"], total_timings["chunk"], total_timings["embed"], total_timings["mongo_bulk_write"]
+        print(f"  total summary: load_parse={lp:.3f}s chunk={ch:.3f}s embed={em:.3f}s mongo_bulk_write={mb:.3f}s chunks={total_docs}", flush=True)
 
         if skip_unchanged:
             save_state(state)
@@ -722,34 +743,74 @@ def ingest_folder_async(
     asyncio.run(_run())
 
 
-if __name__ == "__main__":
-    import os
-    import sys
+def add_ingest_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--env", default="dev")
+    parser.add_argument("--target", default="localhost", choices=["localhost", "atlas"], help="MongoDB: localhost or atlas")
+    parser.add_argument("--mode", choices=["sync", "async"], default="async")
+    parser.add_argument("--queue", choices=["none", "memory", "redis", "rabbitmq"], default="memory")
+    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--max-inflight", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--embedder", default="sentence-transformers")
+    parser.add_argument("--input-dir", default="./data", help="Directory to glob for files (default: ./data)")
+    parser.add_argument("--pattern", default="**/*", help="Glob pattern under input-dir, e.g. *.json (default: **/*)")
+    parser.add_argument("--force", action="store_true")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
 
-    # Parse: python main.py [dev|qa|prod] [local|remote] [pattern] [--force] [--async]
-    COLLECTIONS = {"dev": "collection_taixingbi_dev", "qa": "collection_taixingbi_qa", "prod": "collection_taixingbi_prod"}
-    TARGETS = ("local", "remote")
-    use_async = "--async" in sys.argv
-    args = [a for a in sys.argv[1:] if a not in ("--force", "--async")]
-    skip_unchanged = "--force" not in sys.argv
 
-    # 1) env: dev | qa | prod
-    env_arg = args[0] if args and args[0] in COLLECTIONS else None
-    if env_arg:
-        os.environ["MONGODB_COLLECTION"] = COLLECTIONS[env_arg]
-        args = args[1:]
-
-    # 2) target: local | remote (pick which MongoDB)
-    target_arg = args[0] if args and args[0] in TARGETS else None
-    if target_arg == "local":
-        os.environ["MONGODB_URI"] = os.environ.get("MONGODB_URI_LOCAL", "mongodb://localhost:27017")
-        args = args[1:]
-    elif target_arg == "remote":
-        args = args[1:]
-
-    pattern = args[0] if args else "data/**/*"
-
-    if use_async:
-        ingest_folder_async(pattern, skip_unchanged=skip_unchanged)
+def _ingest_glob(args: argparse.Namespace) -> str:
+    """Build effective file glob from --input-dir and --pattern (recursive if pattern has no **)."""
+    base = args.input_dir.rstrip(os.sep)
+    pat = args.pattern.lstrip(os.sep).replace("\\", "/")
+    if "**" in pat:
+        combined = f"{base}{os.sep}{pat}"
     else:
-        ingest_folder(pattern, skip_unchanged=skip_unchanged)
+        combined = f"{base}{os.sep}**{os.sep}{pat}"
+    return combined.replace("\\", "/")
+
+
+if __name__ == "__main__":
+    # Drop empty/whitespace-only args (e.g. from multiline paste or docker-compose) so we don't get "unrecognized arguments"
+    sys.argv = [a for a in sys.argv if a and a.strip()]
+
+    # Line-buffer stdout so progress logs appear as they're printed (not in one shot at the end, e.g. in Docker)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
+
+    COLLECTIONS = {"dev": "collection_taixingbi_dev", "qa": "collection_taixingbi_qa", "prod": "collection_taixingbi_prod"}
+
+    parser = argparse.ArgumentParser(description="RAG ingest: chunk, embed, upsert to MongoDB")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    ingest_parser = subparsers.add_parser("ingest", help="Run ingest pipeline")
+    add_ingest_args(ingest_parser)
+    args = parser.parse_args()
+
+    assert args.command == "ingest"
+    folder_glob = _ingest_glob(args)
+
+    # Env: set collection
+    if args.env in COLLECTIONS:
+        os.environ["MONGODB_COLLECTION"] = COLLECTIONS[args.env]
+    # Target: which MongoDB
+    if args.target == "localhost":
+        os.environ["MONGODB_URI"] = os.environ.get("MONGODB_URI_LOCAL", "mongodb://localhost:27017")
+
+    # Embedder -> EMBED_PROVIDER (openai | sentence_transformers)
+    if args.embedder == "sentence-transformers":
+        os.environ["EMBED_PROVIDER"] = "sentence_transformers"
+    elif args.embedder == "openai":
+        os.environ["EMBED_PROVIDER"] = "openai"
+    os.environ["BATCH_SIZE"] = str(args.batch_size)
+
+    skip_unchanged = not args.force
+    use_async = args.mode == "async"
+    use_rabbitmq = args.queue == "rabbitmq"
+
+    if use_async and use_rabbitmq:
+        from queue_rabbit import ingest_via_rabbitmq
+        ingest_via_rabbitmq(folder_glob, skip_unchanged=skip_unchanged, num_workers=args.workers)
+    elif use_async:
+        ingest_folder_async(folder_glob, skip_unchanged=skip_unchanged)
+    else:
+        ingest_folder(folder_glob, skip_unchanged=skip_unchanged)

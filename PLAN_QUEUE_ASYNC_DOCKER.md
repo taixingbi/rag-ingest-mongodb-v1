@@ -26,7 +26,7 @@ Config: config.py add redis_url, redis_stream (e.g. rag:ingest:tasks), redis_con
 Services:
 redis: official redis:7-alpine (or 6). Optional: persistence with a volume for /data. Expose 6379.
 rag-ingest: your app; connect to redis://redis:6379/0.
-Single-process run: one command, e.g. python main.py dev remote data/**/* --async. Process: create stream/group if needed, start N worker tasks (XREADGROUP loop), run producer (glob → XADD), then wait until stream empty + no pending (or sentinel consumed), then save_state(state) and exit.
+Single-process run: one command, e.g. python main.py ingest --env dev --target atlas --mode async. Process: create stream/group if needed, start N worker tasks (XREADGROUP loop), run producer (glob → XADD), then wait until stream empty + no pending (or sentinel consumed), then save_state(state) and exit.
 Compose: docker-compose.yml with redis + rag-ingest; rag-ingest depends_on redis, env REDIS_URL=redis://redis:6379/0. Volumes for data and state as before.
 7. Error handling and retry
 Worker crashes before XACK: message stays in “pending”. Use XPENDING to list, then XCLAIM by another worker after idle time (e.g. 60s) to retry. Optionally cap retries with a retries field in the message and DLQ or delete after N claims.

@@ -1,11 +1,28 @@
 """Shared utilities for ingest."""
 
+import glob
 import hashlib
 import io
 import json
 import os
 import time
 from typing import Any, Iterator, List, Union
+
+
+def get_files_for_ingest(folder_glob: str) -> List[str]:
+    """Return sorted list of file paths matching folder_glob (and common extensions if **/* in glob)."""
+    patterns = [folder_glob]
+    if "**/*" in folder_glob:
+        patterns.extend([
+            folder_glob.replace("**/*", "**/*.json"),
+            folder_glob.replace("**/*", "**/*.md"),
+            folder_glob.replace("**/*", "**/*.txt"),
+            folder_glob.replace("**/*", "**/*.pdf"),
+        ])
+    all_files = set()
+    for pattern in patterns:
+        all_files.update(glob.glob(pattern, recursive=True))
+    return sorted(f for f in all_files if os.path.isfile(f))
 
 
 def read_lines_in_blocks(

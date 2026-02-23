@@ -1,6 +1,6 @@
 """
 Configuration loaded from environment (.env).
-Values are read when Settings() is created so CLI args (dev/qa/prod, local/remote) take effect.
+Values are read when Settings() is created so CLI args (--env, --target localhost|atlas) take effect.
 """
 
 from dataclasses import dataclass, field
@@ -39,8 +39,17 @@ class Settings:
     chunk_chars: int = field(default_factory=lambda: _env_int("CHUNK_CHARS", "5000"))
     overlap_chars: int = field(default_factory=lambda: _env_int("OVERLAP_CHARS", "800"))
 
-    # Ingest (batch size for embeddings API)
-    batch_size: int = field(default_factory=lambda: _env_int("BATCH_SIZE", "64"))
-    max_concurrent_files: int = field(default_factory=lambda: _env_int("MAX_CONCURRENT_FILES", "3"))
-    block_queue_size: int = field(default_factory=lambda: _env_int("BLOCK_QUEUE_SIZE", "2"))
-    embed_max_concurrent: int = field(default_factory=lambda: _env_int("EMBED_MAX_CONCURRENT", "2"))
+    # Ingest (batch size for embeddings API; max throughput defaults)
+    batch_size: int = field(default_factory=lambda: _env_int("BATCH_SIZE", "128"))
+    # Local (sentence_transformers) only: larger batches = lower latency (no API limit). Default 256.
+    embed_batch_size_local: int = field(default_factory=lambda: _env_int("EMBED_BATCH_SIZE_LOCAL", "256"))
+    max_concurrent_files: int = field(default_factory=lambda: _env_int("MAX_CONCURRENT_FILES", "6"))
+    block_queue_size: int = field(default_factory=lambda: _env_int("BLOCK_QUEUE_SIZE", "4"))
+    embed_max_concurrent: int = field(default_factory=lambda: _env_int("EMBED_MAX_CONCURRENT", "8"))
+
+    # Device for sentence_transformers: "cuda", "mps", "cpu" (default auto)
+    embed_device: str = field(default_factory=lambda: _env("EMBED_DEVICE", ""))
+
+    # RabbitMQ (optional: use with --async --queue)
+    amqp_url: str = field(default_factory=lambda: _env("AMQP_URL", "amqp://guest:guest@localhost:5672/"))
+    rabbitmq_queue: str = field(default_factory=lambda: _env("RABBITMQ_QUEUE", "rag.ingest.tasks"))
